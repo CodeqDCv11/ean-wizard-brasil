@@ -26,7 +26,7 @@ const calculateEanCheckDigit = (code: string): string => {
 
 const EanGenerator = () => {
   const [prefix, setPrefix] = useState<string>("789");
-  const [cpfDigits, setCpfDigits] = useState<string>("");
+  const [cnpjDigits, setCnpjDigits] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
   const [lastBaseCode, setLastBaseCode] = useState<string>("");
   const [generatedCodes, setGeneratedCodes] = useState<EanCode[]>([]);
@@ -39,8 +39,8 @@ const EanGenerator = () => {
   }, []);
 
   const generateEans = () => {
-    if (cpfDigits.length !== 5) {
-      toast.error("Digite exatamente 5 dígitos do CPF");
+    if (cnpjDigits.length !== 5) {
+      toast.error("Digite exatamente 5 dígitos do CNPJ");
       return;
     }
 
@@ -53,14 +53,14 @@ const EanGenerator = () => {
     const codes: EanCode[] = [];
     let startNumber = 0;
 
-    if (lastBaseCode && lastBaseCode.startsWith(prefix + cpfDigits)) {
+    if (lastBaseCode && lastBaseCode.startsWith(prefix + cnpjDigits)) {
       const lastFourDigits = lastBaseCode.slice(8, 12);
       startNumber = parseInt(lastFourDigits) + 1;
     }
 
     for (let i = 0; i < qty; i++) {
       const fourDigits = (startNumber + i).toString().padStart(4, '0');
-      const baseCode = prefix + cpfDigits + fourDigits;
+      const baseCode = prefix + cnpjDigits + fourDigits;
       const checkDigit = calculateEanCheckDigit(baseCode);
       const fullCode = baseCode + checkDigit;
       
@@ -110,21 +110,21 @@ const EanGenerator = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 md:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground">
+        <div className="text-center space-y-3">
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
             Gerador de EAN-13
           </h1>
-          <p className="text-muted-foreground text-lg">
-            Para E-commerce Brasileiro
+          <p className="text-muted-foreground text-lg md:text-xl">
+            Para Mercado Livre e E-commerce Brasileiro
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <Card className="shadow-lg">
-            <CardHeader>
-              <CardTitle>Configuração</CardTitle>
+          <Card className="shadow-xl border-primary/20 hover:shadow-2xl transition-shadow">
+            <CardHeader className="bg-gradient-to-br from-primary/5 to-secondary/5">
+              <CardTitle className="text-primary">Configuração</CardTitle>
               <CardDescription>
                 Configure os parâmetros para gerar seus códigos EAN-13
               </CardDescription>
@@ -145,15 +145,15 @@ const EanGenerator = () => {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="cpf">5 Primeiros Dígitos do CPF</Label>
+                <Label htmlFor="cnpj">5 Primeiros Dígitos do CNPJ</Label>
                 <Input
-                  id="cpf"
+                  id="cnpj"
                   type="text"
                   maxLength={5}
-                  value={cpfDigits}
-                  onChange={(e) => setCpfDigits(e.target.value.replace(/\D/g, ''))}
+                  value={cnpjDigits}
+                  onChange={(e) => setCnpjDigits(e.target.value.replace(/\D/g, ''))}
                   placeholder="12345"
-                  className="text-lg"
+                  className="text-lg font-mono border-primary/30 focus:border-primary"
                 />
               </div>
 
@@ -167,30 +167,30 @@ const EanGenerator = () => {
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   placeholder="1"
-                  className="text-lg"
+                  className="text-lg font-mono border-primary/30 focus:border-primary"
                 />
               </div>
 
               {lastBaseCode && (
-                <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div className="p-4 bg-gradient-to-br from-secondary/20 to-primary/10 rounded-lg space-y-2 border border-secondary/30">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">Último Código Base</Label>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={resetLastCode}
-                      className="h-8 px-2"
+                      className="h-8 px-2 hover:bg-secondary/20"
                     >
                       <RotateCcw className="h-4 w-4" />
                     </Button>
                   </div>
-                  <p className="font-mono text-lg text-primary">{lastBaseCode}</p>
+                  <p className="font-mono text-lg font-bold text-primary">{lastBaseCode}</p>
                 </div>
               )}
 
               <Button 
                 onClick={generateEans} 
-                className="w-full text-lg h-12"
+                className="w-full text-lg h-12 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all"
                 size="lg"
               >
                 Gerar EANs
@@ -198,11 +198,11 @@ const EanGenerator = () => {
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg">
-            <CardHeader>
+          <Card className="shadow-xl border-primary/20 hover:shadow-2xl transition-shadow">
+            <CardHeader className="bg-gradient-to-br from-primary/5 to-secondary/5">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Códigos Gerados</CardTitle>
+                  <CardTitle className="text-primary">Códigos Gerados</CardTitle>
                   <CardDescription>
                     {generatedCodes.length > 0 && `${generatedCodes.length} código(s) gerado(s)`}
                   </CardDescription>
@@ -213,6 +213,7 @@ const EanGenerator = () => {
                       variant="outline"
                       size="sm"
                       onClick={copyAllCodes}
+                      className="border-primary/30 hover:bg-primary hover:text-primary-foreground"
                     >
                       <Copy className="h-4 w-4 mr-1" />
                       Copiar Todos
@@ -221,6 +222,7 @@ const EanGenerator = () => {
                       variant="outline"
                       size="sm"
                       onClick={downloadCodes}
+                      className="border-secondary/50 hover:bg-secondary hover:text-secondary-foreground"
                     >
                       <Download className="h-4 w-4 mr-1" />
                       Baixar
@@ -240,15 +242,16 @@ const EanGenerator = () => {
                   {generatedCodes.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
+                      className="flex items-center justify-between p-3 bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg hover:from-primary/10 hover:to-secondary/10 transition-all border border-primary/10"
                     >
-                      <span className="font-mono text-lg font-medium">
+                      <span className="font-mono text-lg font-bold text-foreground">
                         {item.code}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => copyCode(item.code)}
+                        className="hover:bg-primary/20"
                       >
                         <Copy className="h-4 w-4" />
                       </Button>
