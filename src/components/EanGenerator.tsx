@@ -25,8 +25,7 @@ const calculateEanCheckDigit = (code: string): string => {
 };
 
 const EanGenerator = () => {
-  const [prefix, setPrefix] = useState<string>("789");
-  const [cnpjDigits, setCnpjDigits] = useState<string>("");
+  const [baseCode, setBaseCode] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("1");
   const [lastBaseCode, setLastBaseCode] = useState<string>("");
   const [generatedCodes, setGeneratedCodes] = useState<EanCode[]>([]);
@@ -39,8 +38,13 @@ const EanGenerator = () => {
   }, []);
 
   const generateEans = () => {
-    if (cnpjDigits.length !== 5) {
-      toast.error("Digite exatamente 5 dígitos do CNPJ");
+    if (baseCode.length !== 12) {
+      toast.error("Digite exatamente 12 dígitos do código base");
+      return;
+    }
+
+    if (!/^\d+$/.test(baseCode)) {
+      toast.error("Digite apenas números");
       return;
     }
 
@@ -51,22 +55,16 @@ const EanGenerator = () => {
     }
 
     const codes: EanCode[] = [];
-    let startNumber = 0;
-
-    if (lastBaseCode && lastBaseCode.startsWith(prefix + cnpjDigits)) {
-      const lastFourDigits = lastBaseCode.slice(8, 12);
-      startNumber = parseInt(lastFourDigits) + 1;
-    }
+    const startNumber = parseInt(baseCode);
 
     for (let i = 0; i < qty; i++) {
-      const fourDigits = (startNumber + i).toString().padStart(4, '0');
-      const baseCode = prefix + cnpjDigits + fourDigits;
-      const checkDigit = calculateEanCheckDigit(baseCode);
-      const fullCode = baseCode + checkDigit;
+      const currentBase = (startNumber + i).toString().padStart(12, '0');
+      const checkDigit = calculateEanCheckDigit(currentBase);
+      const fullCode = currentBase + checkDigit;
       
       codes.push({
         code: fullCode,
-        baseCode: baseCode
+        baseCode: currentBase
       });
     }
 
@@ -130,31 +128,20 @@ const EanGenerator = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <Label>Prefixo Brasileiro</Label>
-                <RadioGroup value={prefix} onValueChange={setPrefix}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="789" id="789" />
-                    <Label htmlFor="789" className="cursor-pointer">789</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="790" id="790" />
-                    <Label htmlFor="790" className="cursor-pointer">790</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
               <div className="space-y-2">
-                <Label htmlFor="cnpj">5 Primeiros Dígitos do CNPJ</Label>
+                <Label htmlFor="baseCode">Código Base (12 dígitos)</Label>
                 <Input
-                  id="cnpj"
+                  id="baseCode"
                   type="text"
-                  maxLength={5}
-                  value={cnpjDigits}
-                  onChange={(e) => setCnpjDigits(e.target.value.replace(/\D/g, ''))}
-                  placeholder="12345"
+                  maxLength={12}
+                  value={baseCode}
+                  onChange={(e) => setBaseCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="789428216684"
                   className="text-lg font-mono border-primary/30 focus:border-primary"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Digite os 12 primeiros dígitos do EAN (sem o dígito verificador)
+                </p>
               </div>
 
               <div className="space-y-2">
@@ -166,7 +153,7 @@ const EanGenerator = () => {
                   max="1000"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="1"
+                  placeholder="10"
                   className="text-lg font-mono border-primary/30 focus:border-primary"
                 />
               </div>
@@ -268,34 +255,30 @@ const EanGenerator = () => {
             <CardTitle>Estrutura do EAN-13</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-primary/10 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">Prefixo Brasil</p>
-                <p className="font-mono text-xl font-bold text-primary">789/790</p>
-                <p className="text-xs text-muted-foreground mt-1">3 dígitos</p>
+                <p className="text-sm text-muted-foreground mb-1">Código Base</p>
+                <p className="font-mono text-xl font-bold text-primary">XXXXXXXXXXXX</p>
+                <p className="text-xs text-muted-foreground mt-1">12 dígitos</p>
               </div>
-              <div className="p-4 bg-accent/10 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">CPF</p>
-                <p className="font-mono text-xl font-bold text-accent">XXXXX</p>
-                <p className="text-xs text-muted-foreground mt-1">5 dígitos</p>
-              </div>
-              <div className="p-4 bg-secondary rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">Sequencial</p>
-                <p className="font-mono text-xl font-bold">XXXX</p>
-                <p className="text-xs text-muted-foreground mt-1">4 dígitos</p>
-              </div>
-              <div className="p-4 bg-muted rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">Verificador</p>
+              <div className="p-4 bg-secondary/20 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground mb-1">Dígito Verificador</p>
                 <p className="font-mono text-xl font-bold">X</p>
                 <p className="text-xs text-muted-foreground mt-1">1 dígito</p>
               </div>
-              <div className="p-4 bg-foreground/5 rounded-lg text-center flex items-center justify-center">
+              <div className="p-4 bg-accent/10 rounded-lg text-center flex items-center justify-center">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-1">Total</p>
+                  <p className="text-sm text-muted-foreground mb-1">Total EAN-13</p>
                   <p className="font-mono text-2xl font-bold text-foreground">13</p>
                   <p className="text-xs text-muted-foreground mt-1">dígitos</p>
                 </div>
               </div>
+            </div>
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Exemplo:</strong> Se você digitar <span className="font-mono">789428216684</span> e pedir 10 EANs,
+                serão gerados códigos de <span className="font-mono">789428216684</span> até <span className="font-mono">789428216693</span> (cada um com seu dígito verificador).
+              </p>
             </div>
           </CardContent>
         </Card>
