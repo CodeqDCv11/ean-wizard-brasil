@@ -312,20 +312,28 @@ const EanGenerator = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-primary shadow-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          {/* Left - Logo and Title */}
           <div className="flex items-center gap-3">
-            <Barcode className="h-8 w-8 text-primary-foreground" />
-            <h1 className="text-xl font-bold text-primary-foreground">
+            <div className="w-10 h-10 bg-primary-foreground rounded-lg flex items-center justify-center">
+              <Barcode className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="text-xl font-bold text-primary-foreground hidden sm:block">
               Gerador de EAN-13
             </h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            {!isAdmin && accessExpiresAt && (
-              <span className="text-sm text-primary-foreground/80 hidden md:block">
-                Acesso expira {formatDistanceToNow(accessExpiresAt, { locale: ptBR, addSuffix: true })}
+          {/* Center - Access Time */}
+          {!isAdmin && accessExpiresAt && (
+            <div className="absolute left-1/2 transform -translate-x-1/2 text-center">
+              <span className="text-sm font-medium text-primary-foreground bg-primary-foreground/10 px-4 py-1.5 rounded-full">
+                ⏱️ Expira {formatDistanceToNow(accessExpiresAt, { locale: ptBR, addSuffix: true })}
               </span>
-            )}
+            </div>
+          )}
+
+          {/* Right - Actions */}
+          <div className="flex items-center gap-2">
             {isAdmin && (
               <Button
                 variant="ghost"
