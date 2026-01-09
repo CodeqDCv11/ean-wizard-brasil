@@ -30,10 +30,33 @@ const Admin = () => {
   const [accessDuration, setAccessDuration] = useState<string>("7d");
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
 
-  useEffect(() => {
-    if (!loading && !isAdmin) {
+  // Server-side admin verification
+  const verifyAdminAccess = async () => {
+    try {
+      const { data, error } = await supabase.rpc('has_role', {
+        _user_id: (await supabase.auth.getUser()).data.user?.id,
+        _role: 'admin'
+      });
+      
+      if (error || !data) {
+        navigate("/");
+        toast.error("Acesso negado. Apenas administradores.");
+      }
+    } catch {
       navigate("/");
-      toast.error("Acesso negado. Apenas administradores.");
+      toast.error("Erro ao verificar permissões.");
+    }
+  };
+
+  useEffect(() => {
+    if (!loading) {
+      if (!isAdmin) {
+        navigate("/");
+        toast.error("Acesso negado. Apenas administradores.");
+      } else {
+        // Verify server-side even if client thinks user is admin
+        verifyAdminAccess();
+      }
     }
   }, [isAdmin, loading, navigate]);
 
