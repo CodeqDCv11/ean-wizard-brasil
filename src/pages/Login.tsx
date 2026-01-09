@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { Barcode, LogIn, UserPlus } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
+import logoIcon from "@/assets/icon.png";
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -56,9 +57,11 @@ const Login = () => {
     <div className="min-h-screen bg-primary flex items-center justify-center p-4">
       <Card className="w-full max-w-md shadow-2xl border-0">
         <CardHeader className="text-center space-y-4 pb-6">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-            <Barcode className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <img 
+            src={logoIcon} 
+            alt="Logo" 
+            className="mx-auto w-16 h-16 object-contain"
+          />
           <div>
             <CardTitle className="text-2xl font-bold text-foreground">
               Gerador de EAN-13
