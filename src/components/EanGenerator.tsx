@@ -57,6 +57,9 @@ const EanGenerator = () => {
   const [showNewForm, setShowNewForm] = useState(false);
   const [newName, setNewName] = useState("");
   const [newCnpjPrefix, setNewCnpjPrefix] = useState("");
+  const [newFormMode, setNewFormMode] = useState<"auto" | "manual">("auto");
+  const [newManualBaseCode, setNewManualBaseCode] = useState("");
+  const [newPrefix, setNewPrefix] = useState<"789" | "790">("789");
 
   // Generation
   const [quantity, setQuantity] = useState("1");
@@ -96,13 +99,28 @@ const EanGenerator = () => {
       return;
     }
 
-    if (newCnpjPrefix.length !== 5 || !/^\d+$/.test(newCnpjPrefix)) {
-      toast.error("Digite exatamente 5 dígitos do CNPJ");
-      return;
-    }
+    let initialBaseCode: string;
+    let cnpjPrefixToSave: string;
 
-    // Create initial 12-digit base code: 789 (Brazil) + 5 CNPJ digits + 0001 (sequential start)
-    const initialBaseCode = `789${newCnpjPrefix}0001`;
+    if (newFormMode === "manual") {
+      // Manual mode: user provides full 12-digit base code
+      if (newManualBaseCode.length !== 12 || !/^\d+$/.test(newManualBaseCode)) {
+        toast.error("Digite exatamente 12 dígitos do código base");
+        return;
+      }
+      initialBaseCode = newManualBaseCode;
+      // Extract CNPJ prefix from positions 3-7 (after the 789/790 prefix)
+      cnpjPrefixToSave = newManualBaseCode.substring(3, 8);
+    } else {
+      // Auto mode: create from prefix + CNPJ
+      if (newCnpjPrefix.length !== 5 || !/^\d+$/.test(newCnpjPrefix)) {
+        toast.error("Digite exatamente 5 dígitos do CNPJ");
+        return;
+      }
+      // Create initial 12-digit base code: prefix (789/790) + 5 CNPJ digits + 0001 (sequential start)
+      initialBaseCode = `${newPrefix}${newCnpjPrefix}0001`;
+      cnpjPrefixToSave = newCnpjPrefix;
+    }
 
     try {
       const { data, error } = await supabase
@@ -110,7 +128,7 @@ const EanGenerator = () => {
         .insert({
           user_id: user.id,
           name: newName.trim(),
-          cnpj_prefix: newCnpjPrefix,
+          cnpj_prefix: cnpjPrefixToSave,
           last_base_code: initialBaseCode,
         })
         .select()
@@ -122,6 +140,7 @@ const EanGenerator = () => {
       setSavedBases([...savedBases, data]);
       setNewName("");
       setNewCnpjPrefix("");
+      setNewManualBaseCode("");
       setShowNewForm(false);
       setSelectedBase(data);
     } catch (error: any) {
@@ -355,23 +374,95 @@ const EanGenerator = () => {
                       <Label htmlFor="newName">Nome/Identificador</Label>
                       <Input
                         id="newName"
-                        placeholder="Ex: Marcos, Loja X"
+                        placeholder="Ex: Glaucia, Marcos, Loja X"
                         value={newName}
                         onChange={(e) => setNewName(e.target.value)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="newCnpj">5 Primeiros Dígitos do CNPJ</Label>
-                      <Input
-                        id="newCnpj"
-                        placeholder="42821"
-                        maxLength={5}
-                        value={newCnpjPrefix}
-                        onChange={(e) =>
-                          setNewCnpjPrefix(e.target.value.replace(/\D/g, ""))
-                        }
-                      />
+
+                    {/* Mode Toggle */}
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={newFormMode === "auto" ? "default" : "outline"}
+                        onClick={() => setNewFormMode("auto")}
+                        className={newFormMode === "auto" ? "bg-secondary text-secondary-foreground" : ""}
+                      >
+                        Automático
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={newFormMode === "manual" ? "default" : "outline"}
+                        onClick={() => setNewFormMode("manual")}
+                        className={newFormMode === "manual" ? "bg-secondary text-secondary-foreground" : ""}
+                      >
+                        Manual
+                      </Button>
                     </div>
+
+                    {newFormMode === "auto" ? (
+                      <>
+                        {/* Prefix Selection */}
+                        <div className="space-y-2">
+                          <Label>Prefixo Brasil</Label>
+                          <div className="flex gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={newPrefix === "789" ? "default" : "outline"}
+                              onClick={() => setNewPrefix("789")}
+                              className={newPrefix === "789" ? "bg-accent text-accent-foreground flex-1" : "flex-1"}
+                            >
+                              789
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={newPrefix === "790" ? "default" : "outline"}
+                              onClick={() => setNewPrefix("790")}
+                              className={newPrefix === "790" ? "bg-accent text-accent-foreground flex-1" : "flex-1"}
+                            >
+                              790
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="newCnpj">5 Primeiros Dígitos do CNPJ</Label>
+                          <Input
+                            id="newCnpj"
+                            placeholder="42821"
+                            maxLength={5}
+                            value={newCnpjPrefix}
+                            onChange={(e) =>
+                              setNewCnpjPrefix(e.target.value.replace(/\D/g, ""))
+                            }
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Será criado: {newPrefix}{newCnpjPrefix.padEnd(5, "X")}0001
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor="manualCode">Código Base (12 dígitos)</Label>
+                        <Input
+                          id="manualCode"
+                          placeholder="789343262965"
+                          maxLength={12}
+                          value={newManualBaseCode}
+                          onChange={(e) =>
+                            setNewManualBaseCode(e.target.value.replace(/\D/g, ""))
+                          }
+                          className="font-mono"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Digite o último código base que você usou
+                        </p>
+                      </div>
+                    )}
+
                     <Button
                       onClick={createNewBase}
                       className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
