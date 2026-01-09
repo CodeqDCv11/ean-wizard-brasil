@@ -8,83 +8,93 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 228 45% 20%;
+    /* Mercado Livre Theme - Yellow dominant with blue accents */
+    --background: 50 20% 97%;
+    --foreground: 220 20% 20%;
 
     --card: 0 0% 100%;
-    --card-foreground: 228 45% 20%;
+    --card-foreground: 220 20% 20%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 228 45% 20%;
+    --popover-foreground: 220 20% 20%;
 
-    --primary: 217 89% 61%;
-    --primary-foreground: 0 0% 100%;
+    /* ML Yellow */
+    --primary: 48 100% 50%;
+    --primary-foreground: 220 20% 15%;
 
-    --secondary: 54 100% 62%;
-    --secondary-foreground: 228 45% 20%;
+    /* ML Blue */
+    --secondary: 210 100% 45%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 228 20% 50%;
+    --muted: 50 15% 93%;
+    --muted-foreground: 220 15% 45%;
 
-    --accent: 54 100% 62%;
-    --accent-foreground: 228 45% 20%;
+    --accent: 210 100% 45%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 89% 61%;
+    --border: 50 15% 85%;
+    --input: 50 15% 88%;
+    --ring: 48 100% 50%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 228 45% 20%;
-    --sidebar-primary: 217 89% 61%;
+    /* ML Success Green */
+    --success: 145 65% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --sidebar-background: 48 100% 50%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 210 100% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 54 100% 62%;
-    --sidebar-accent-foreground: 228 45% 20%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 217 89% 61%;
+    --sidebar-accent: 48 100% 45%;
+    --sidebar-accent-foreground: 220 20% 15%;
+    --sidebar-border: 48 80% 45%;
+    --sidebar-ring: 210 100% 45%;
   }
 
   .dark {
-    --background: 228 45% 12%;
-    --foreground: 0 0% 98%;
+    --background: 220 20% 10%;
+    --foreground: 50 20% 95%;
 
-    --card: 228 38% 16%;
-    --card-foreground: 0 0% 98%;
+    --card: 220 18% 14%;
+    --card-foreground: 50 20% 95%;
 
-    --popover: 228 38% 16%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 220 18% 14%;
+    --popover-foreground: 50 20% 95%;
 
-    --primary: 217 89% 61%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 48 100% 50%;
+    --primary-foreground: 220 20% 15%;
 
-    --secondary: 54 100% 62%;
-    --secondary-foreground: 228 45% 20%;
+    --secondary: 210 100% 50%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 228 30% 20%;
-    --muted-foreground: 210 20% 70%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 50 10% 65%;
 
-    --accent: 54 100% 62%;
-    --accent-foreground: 228 45% 20%;
+    --accent: 210 100% 50%;
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
+    --destructive: 0 63% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 228 30% 20%;
-    --input: 228 30% 20%;
-    --ring: 217 89% 61%;
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 48 100% 50%;
+
+    --success: 145 65% 42%;
+    --success-foreground: 0 0% 100%;
     
-    --sidebar-background: 228 45% 10%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 217 89% 61%;
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 50 20% 95%;
+    --sidebar-primary: 210 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 228 30% 18%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 228 30% 18%;
-    --sidebar-ring: 217 89% 61%;
+    --sidebar-accent: 220 15% 15%;
+    --sidebar-accent-foreground: 50 20% 95%;
+    --sidebar-border: 220 15% 18%;
+    --sidebar-ring: 48 100% 50%;
   }
 }
 

@@ -1,11 +1,31 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "sonner";
-import { Copy, Download, RotateCcw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { 
+  Barcode, 
+  Copy, 
+  Download, 
+  LogOut, 
+  Plus, 
+  Settings, 
+  Trash2, 
+  User 
+} from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+interface SavedEanBase {
+  id: string;
+  name: string;
+  cnpj_prefix: string;
+  last_base_code: string;
+}
 
 interface EanCode {
   code: string;
@@ -13,40 +33,128 @@ interface EanCode {
 }
 
 const calculateEanCheckDigit = (code: string): string => {
-  const digits = code.split('').map(Number);
+  const digits = code.split("").map(Number);
   let sum = 0;
-  
+
   for (let i = 0; i < 12; i++) {
     sum += digits[i] * (i % 2 === 0 ? 1 : 3);
   }
-  
+
   const checkDigit = (10 - (sum % 10)) % 10;
   return checkDigit.toString();
 };
 
 const EanGenerator = () => {
-  const [baseCode, setBaseCode] = useState<string>("");
-  const [quantity, setQuantity] = useState<string>("1");
-  const [lastBaseCode, setLastBaseCode] = useState<string>("");
+  const { user, isAdmin, hasAccess, accessExpiresAt, signOut, loading } = useAuth();
+  const navigate = useNavigate();
+
+  // Saved EAN bases
+  const [savedBases, setSavedBases] = useState<SavedEanBase[]>([]);
+  const [selectedBase, setSelectedBase] = useState<SavedEanBase | null>(null);
+  const [isLoadingBases, setIsLoadingBases] = useState(true);
+
+  // New base form
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newCnpjPrefix, setNewCnpjPrefix] = useState("");
+
+  // Generation
+  const [quantity, setQuantity] = useState("1");
   const [generatedCodes, setGeneratedCodes] = useState<EanCode[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("lastEanBaseCode");
-    if (saved) {
-      setLastBaseCode(saved);
+    if (!loading && user && hasAccess) {
+      fetchSavedBases();
     }
-  }, []);
+  }, [loading, user, hasAccess]);
 
-  const generateEans = () => {
-    if (baseCode.length !== 12) {
-      toast.error("Digite exatamente 12 dígitos do código base");
+  const fetchSavedBases = async () => {
+    if (!user) return;
+
+    setIsLoadingBases(true);
+    try {
+      const { data, error } = await supabase
+        .from("saved_ean_bases")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("name");
+
+      if (error) throw error;
+      setSavedBases(data || []);
+    } catch (error) {
+      console.error("Error fetching saved bases:", error);
+      toast.error("Erro ao carregar bases salvas");
+    }
+    setIsLoadingBases(false);
+  };
+
+  const createNewBase = async () => {
+    if (!user) return;
+
+    if (!newName.trim()) {
+      toast.error("Digite um nome para identificar");
       return;
     }
 
-    if (!/^\d+$/.test(baseCode)) {
-      toast.error("Digite apenas números");
+    if (newCnpjPrefix.length !== 5 || !/^\d+$/.test(newCnpjPrefix)) {
+      toast.error("Digite exatamente 5 dígitos do CNPJ");
       return;
     }
+
+    // Create initial 12-digit base code: 789 (Brazil) + 5 CNPJ digits + 0001 (sequential start)
+    const initialBaseCode = `789${newCnpjPrefix}0001`;
+
+    try {
+      const { data, error } = await supabase
+        .from("saved_ean_bases")
+        .insert({
+          user_id: user.id,
+          name: newName.trim(),
+          cnpj_prefix: newCnpjPrefix,
+          last_base_code: initialBaseCode,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success(`Base "${newName}" criada com sucesso!`);
+      setSavedBases([...savedBases, data]);
+      setNewName("");
+      setNewCnpjPrefix("");
+      setShowNewForm(false);
+      setSelectedBase(data);
+    } catch (error: any) {
+      if (error.code === "23505") {
+        toast.error("Já existe uma base com esse nome");
+      } else {
+        toast.error("Erro ao criar base");
+      }
+    }
+  };
+
+  const deleteBase = async (base: SavedEanBase) => {
+    try {
+      const { error } = await supabase
+        .from("saved_ean_bases")
+        .delete()
+        .eq("id", base.id);
+
+      if (error) throw error;
+
+      toast.success(`Base "${base.name}" removida`);
+      setSavedBases(savedBases.filter((b) => b.id !== base.id));
+      if (selectedBase?.id === base.id) {
+        setSelectedBase(null);
+        setGeneratedCodes([]);
+      }
+    } catch (error) {
+      toast.error("Erro ao remover base");
+    }
+  };
+
+  const generateEans = async () => {
+    if (!selectedBase || !user) return;
 
     const qty = parseInt(quantity);
     if (isNaN(qty) || qty < 1 || qty > 1000) {
@@ -55,25 +163,41 @@ const EanGenerator = () => {
     }
 
     const codes: EanCode[] = [];
-    const startNumber = parseInt(baseCode);
+    const startNumber = parseInt(selectedBase.last_base_code);
 
     for (let i = 0; i < qty; i++) {
-      const currentBase = (startNumber + i).toString().padStart(12, '0');
+      const currentBase = (startNumber + i).toString().padStart(12, "0");
       const checkDigit = calculateEanCheckDigit(currentBase);
       const fullCode = currentBase + checkDigit;
-      
+
       codes.push({
         code: fullCode,
-        baseCode: currentBase
+        baseCode: currentBase,
       });
     }
 
     const lastGenerated = codes[codes.length - 1].baseCode;
-    setLastBaseCode(lastGenerated);
-    localStorage.setItem("lastEanBaseCode", lastGenerated);
-    
+    const nextBaseCode = (parseInt(lastGenerated) + 1).toString().padStart(12, "0");
+
+    // Update the last base code in database
+    try {
+      const { error } = await supabase
+        .from("saved_ean_bases")
+        .update({ last_base_code: nextBaseCode })
+        .eq("id", selectedBase.id);
+
+      if (error) throw error;
+
+      // Update local state
+      const updatedBase = { ...selectedBase, last_base_code: nextBaseCode };
+      setSelectedBase(updatedBase);
+      setSavedBases(savedBases.map((b) => (b.id === selectedBase.id ? updatedBase : b)));
+    } catch (error) {
+      toast.error("Erro ao salvar último código");
+    }
+
     setGeneratedCodes(codes);
-    toast.success(`${qty} código(s) EAN-13 gerado(s) com sucesso!`);
+    toast.success(`${qty} código(s) EAN-13 gerado(s)!`);
   };
 
   const copyCode = (code: string) => {
@@ -82,18 +206,18 @@ const EanGenerator = () => {
   };
 
   const copyAllCodes = () => {
-    const allCodes = generatedCodes.map(c => c.code).join('\n');
+    const allCodes = generatedCodes.map((c) => c.code).join("\n");
     navigator.clipboard.writeText(allCodes);
     toast.success("Todos os códigos copiados!");
   };
 
   const downloadCodes = () => {
-    const allCodes = generatedCodes.map(c => c.code).join('\n');
-    const blob = new Blob([allCodes], { type: 'text/plain' });
+    const allCodes = generatedCodes.map((c) => c.code).join("\n");
+    const blob = new Blob([allCodes], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `ean-codes-${Date.now()}.txt`;
+    a.download = `ean-codes-${selectedBase?.name || "export"}-${Date.now()}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -101,188 +225,339 @@ const EanGenerator = () => {
     toast.success("Arquivo baixado!");
   };
 
-  const resetLastCode = () => {
-    setLastBaseCode("");
-    localStorage.removeItem("lastEanBaseCode");
-    toast.success("Último código resetado!");
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/login");
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/10 p-4 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            Gerador de EAN-13
-          </h1>
-          <p className="text-muted-foreground text-lg md:text-xl">
-            Para Mercado Livre e E-commerce Brasileiro
-          </p>
-        </div>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-primary flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-foreground border-t-transparent" />
+      </div>
+    );
+  }
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card className="shadow-xl border-primary/20 hover:shadow-2xl transition-shadow">
-            <CardHeader className="bg-gradient-to-br from-primary/5 to-secondary/5">
-              <CardTitle className="text-primary">Configuração</CardTitle>
+  if (!user) {
+    navigate("/login");
+    return null;
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="bg-primary shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Barcode className="h-8 w-8 text-primary-foreground" />
+              <h1 className="text-xl font-bold text-primary-foreground">
+                Gerador de EAN-13
+              </h1>
+            </div>
+            <Button
+              variant="ghost"
+              onClick={handleSignOut}
+              className="text-primary-foreground hover:bg-primary-foreground/10"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sair
+            </Button>
+          </div>
+        </header>
+
+        <main className="max-w-2xl mx-auto px-4 py-16">
+          <Card className="shadow-xl border-destructive/20">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                <User className="h-8 w-8 text-destructive" />
+              </div>
+              <CardTitle className="text-destructive">Acesso Expirado</CardTitle>
               <CardDescription>
-                Configure os parâmetros para gerar seus códigos EAN-13
+                {accessExpiresAt
+                  ? `Seu acesso expirou em ${format(accessExpiresAt, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+                  : "Você ainda não tem acesso liberado para usar o gerador."}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="baseCode">Código Base (12 dígitos)</Label>
-                <Input
-                  id="baseCode"
-                  type="text"
-                  maxLength={12}
-                  value={baseCode}
-                  onChange={(e) => setBaseCode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="789428216684"
-                  className="text-lg font-mono border-primary/30 focus:border-primary"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Digite os 12 primeiros dígitos do EAN (sem o dígito verificador)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantidade de EANs</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  max="1000"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="10"
-                  className="text-lg font-mono border-primary/30 focus:border-primary"
-                />
-              </div>
-
-              {lastBaseCode && (
-                <div className="p-4 bg-gradient-to-br from-secondary/20 to-primary/10 rounded-lg space-y-2 border border-secondary/30">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Último Código Base</Label>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={resetLastCode}
-                      className="h-8 px-2 hover:bg-secondary/20"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="font-mono text-lg font-bold text-primary">{lastBaseCode}</p>
-                </div>
-              )}
-
-              <Button 
-                onClick={generateEans} 
-                className="w-full text-lg h-12 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all"
-                size="lg"
-              >
-                Gerar EANs
-              </Button>
+            <CardContent className="text-center">
+              <p className="text-muted-foreground">
+                Entre em contato com o administrador para renovar seu acesso.
+              </p>
             </CardContent>
           </Card>
+        </main>
+      </div>
+    );
+  }
 
-          <Card className="shadow-xl border-primary/20 hover:shadow-2xl transition-shadow">
-            <CardHeader className="bg-gradient-to-br from-primary/5 to-secondary/5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-primary">Códigos Gerados</CardTitle>
-                  <CardDescription>
-                    {generatedCodes.length > 0 && `${generatedCodes.length} código(s) gerado(s)`}
-                  </CardDescription>
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-primary shadow-lg sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Barcode className="h-8 w-8 text-primary-foreground" />
+            <h1 className="text-xl font-bold text-primary-foreground">
+              Gerador de EAN-13
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {!isAdmin && accessExpiresAt && (
+              <span className="text-sm text-primary-foreground/80 hidden md:block">
+                Acesso expira {formatDistanceToNow(accessExpiresAt, { locale: ptBR, addSuffix: true })}
+              </span>
+            )}
+            {isAdmin && (
+              <Button
+                variant="ghost"
+                onClick={() => navigate("/admin")}
+                className="text-primary-foreground hover:bg-primary-foreground/10"
+              >
+                <Settings className="h-5 w-5 mr-2" />
+                Admin
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              onClick={handleSignOut}
+              className="text-primary-foreground hover:bg-primary-foreground/10"
+            >
+              <LogOut className="h-5 w-5 mr-2" />
+              Sair
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Saved Bases Sidebar */}
+          <div className="lg:col-span-1 space-y-4">
+            <Card className="shadow-lg">
+              <CardHeader className="bg-gradient-to-r from-secondary/10 to-primary/10 pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">EANs Base Salvos</CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowNewForm(!showNewForm)}
+                    className="bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Novo
+                  </Button>
                 </div>
-                {generatedCodes.length > 0 && (
-                  <div className="flex gap-2">
+              </CardHeader>
+              <CardContent className="pt-4">
+                {/* New Base Form */}
+                {showNewForm && (
+                  <div className="mb-4 p-4 bg-muted rounded-lg space-y-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="newName">Nome/Identificador</Label>
+                      <Input
+                        id="newName"
+                        placeholder="Ex: Marcos, Loja X"
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="newCnpj">5 Primeiros Dígitos do CNPJ</Label>
+                      <Input
+                        id="newCnpj"
+                        placeholder="42821"
+                        maxLength={5}
+                        value={newCnpjPrefix}
+                        onChange={(e) =>
+                          setNewCnpjPrefix(e.target.value.replace(/\D/g, ""))
+                        }
+                      />
+                    </div>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={copyAllCodes}
-                      className="border-primary/30 hover:bg-primary hover:text-primary-foreground"
+                      onClick={createNewBase}
+                      className="w-full bg-secondary hover:bg-secondary/90 text-secondary-foreground"
                     >
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copiar Todos
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={downloadCodes}
-                      className="border-secondary/50 hover:bg-secondary hover:text-secondary-foreground"
-                    >
-                      <Download className="h-4 w-4 mr-1" />
-                      Baixar
+                      Criar Base
                     </Button>
                   </div>
                 )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {generatedCodes.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>Nenhum código gerado ainda</p>
-                  <p className="text-sm mt-2">Configure e clique em "Gerar EANs"</p>
-                </div>
-              ) : (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                  {generatedCodes.map((item, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-gradient-to-r from-primary/5 to-secondary/5 rounded-lg hover:from-primary/10 hover:to-secondary/10 transition-all border border-primary/10"
-                    >
-                      <span className="font-mono text-lg font-bold text-foreground">
-                        {item.code}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => copyCode(item.code)}
-                        className="hover:bg-primary/20"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
 
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle>Estrutura do EAN-13</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-primary/10 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">Código Base</p>
-                <p className="font-mono text-xl font-bold text-primary">XXXXXXXXXXXX</p>
-                <p className="text-xs text-muted-foreground mt-1">12 dígitos</p>
-              </div>
-              <div className="p-4 bg-secondary/20 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground mb-1">Dígito Verificador</p>
-                <p className="font-mono text-xl font-bold">X</p>
-                <p className="text-xs text-muted-foreground mt-1">1 dígito</p>
-              </div>
-              <div className="p-4 bg-accent/10 rounded-lg text-center flex items-center justify-center">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Total EAN-13</p>
-                  <p className="font-mono text-2xl font-bold text-foreground">13</p>
-                  <p className="text-xs text-muted-foreground mt-1">dígitos</p>
-                </div>
-              </div>
-            </div>
-            <div className="mt-4 p-4 bg-muted/50 rounded-lg">
-              <p className="text-sm text-muted-foreground">
-                <strong>Exemplo:</strong> Se você digitar <span className="font-mono">789428216684</span> e pedir 10 EANs,
-                serão gerados códigos de <span className="font-mono">789428216684</span> até <span className="font-mono">789428216693</span> (cada um com seu dígito verificador).
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+                {/* Saved Bases List */}
+                {isLoadingBases ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    Carregando...
+                  </div>
+                ) : savedBases.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p>Nenhuma base salva</p>
+                    <p className="text-sm mt-1">
+                      Clique em "Novo" para criar
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {savedBases.map((base) => (
+                      <div
+                        key={base.id}
+                        className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                          selectedBase?.id === base.id
+                            ? "border-secondary bg-secondary/10"
+                            : "border-border hover:border-secondary/50 hover:bg-muted/50"
+                        }`}
+                        onClick={() => {
+                          setSelectedBase(base);
+                          setGeneratedCodes([]);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-foreground">
+                              {base.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              CNPJ: {base.cnpj_prefix}... | Último:{" "}
+                              <span className="font-mono">
+                                {base.last_base_code}
+                              </span>
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteBase(base);
+                            }}
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Generator Panel */}
+          <div className="lg:col-span-2 space-y-6">
+            {selectedBase ? (
+              <>
+                {/* Generation Card */}
+                <Card className="shadow-lg">
+                  <CardHeader className="bg-gradient-to-r from-primary/10 to-secondary/10">
+                    <CardTitle className="flex items-center gap-2">
+                      <Barcode className="h-5 w-5" />
+                      Gerar EANs para: {selectedBase.name}
+                    </CardTitle>
+                    <CardDescription>
+                      Próximo código base:{" "}
+                      <span className="font-mono font-bold text-foreground">
+                        {selectedBase.last_base_code}
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <div className="flex gap-4">
+                      <div className="flex-1 space-y-2">
+                        <Label htmlFor="quantity">Quantidade de EANs</Label>
+                        <Input
+                          id="quantity"
+                          type="number"
+                          min="1"
+                          max="1000"
+                          value={quantity}
+                          onChange={(e) => setQuantity(e.target.value)}
+                          placeholder="10"
+                          className="text-lg font-mono"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <Button
+                          onClick={generateEans}
+                          size="lg"
+                          className="h-11 px-8 bg-secondary hover:bg-secondary/90 text-secondary-foreground font-semibold"
+                        >
+                          Gerar EANs
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Generated Codes */}
+                {generatedCodes.length > 0 && (
+                  <Card className="shadow-lg">
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>Códigos Gerados</CardTitle>
+                          <CardDescription>
+                            {generatedCodes.length} código(s) EAN-13
+                          </CardDescription>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={copyAllCodes}
+                            className="border-secondary/50 hover:bg-secondary/10"
+                          >
+                            <Copy className="h-4 w-4 mr-1" />
+                            Copiar Todos
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadCodes}
+                            className="border-secondary/50 hover:bg-secondary/10"
+                          >
+                            <Download className="h-4 w-4 mr-1" />
+                            Baixar .txt
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                        {generatedCodes.map((item, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between p-3 bg-muted rounded-lg hover:bg-muted/80 transition-colors"
+                          >
+                            <span className="font-mono text-lg font-bold text-foreground">
+                              {item.code}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyCode(item.code)}
+                              className="hover:bg-secondary/20"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            ) : (
+              <Card className="shadow-lg">
+                <CardContent className="py-16 text-center text-muted-foreground">
+                  <Barcode className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                  <p className="text-lg">Selecione uma base salva</p>
+                  <p className="text-sm mt-1">
+                    Ou crie uma nova clicando em "Novo"
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 };
