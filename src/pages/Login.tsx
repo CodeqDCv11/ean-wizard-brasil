@@ -23,7 +23,8 @@ const Login = () => {
     const { error } = await signIn(email, password);
 
     if (error) {
-      toast.error(error.message || "Erro ao fazer login");
+      // Use generic error message to prevent user enumeration
+      toast.error("Email ou senha incorretos");
     } else {
       toast.success("Login realizado com sucesso!");
       navigate("/");
@@ -39,7 +40,10 @@ const Login = () => {
     const { error } = await signUp(email, password);
 
     if (error) {
-      toast.error(error.message || "Erro ao criar conta");
+      // Use generic error message to prevent user enumeration
+      // Only show specific message for weak password validation
+      const isWeakPassword = error.message?.toLowerCase().includes("password");
+      toast.error(isWeakPassword ? "Senha muito fraca. Use pelo menos 6 caracteres." : "Erro ao criar conta. Tente novamente.");
     } else {
       toast.success("Conta criada! Aguarde a aprovação do administrador para gerar EANs.");
       navigate("/");
